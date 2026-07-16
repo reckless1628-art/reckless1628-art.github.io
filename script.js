@@ -82,6 +82,11 @@ const runnerStatusValue = document.getElementById('runner-status');
 const runnerScoreValue = document.getElementById('runner-score');
 const runnerBestValue = document.getElementById('runner-best');
 const runnerButtons = document.querySelectorAll('[data-runner-action]');
+let activeGame = 'snake';
+
+const setActiveGame = (game) => {
+  activeGame = game;
+};
 const BOARD_WIDTH = 600;
 const BOARD_HEIGHT = 800;
 const CELL = 20;
@@ -586,7 +591,11 @@ if (snakeCanvas) {
     D: controls.right,
   };
 
-  window.addEventListener('keydown', (event) => {
+window.addEventListener('keydown', (event) => {
+    if (activeGame === 'runner') {
+      return;
+    }
+
     if (event.key === 'p' || event.key === 'P') {
       event.preventDefault();
       handleAction('pause');
@@ -602,12 +611,14 @@ if (snakeCanvas) {
 
   actionButtons.forEach((button) => {
     button.addEventListener('click', () => {
+      setActiveGame('snake');
       handleAction(button.dataset.action);
     });
   });
 
   directionButtons.forEach((button) => {
     button.addEventListener('click', () => {
+      setActiveGame('snake');
       const dir = controls[button.dataset.dir];
       if (dir) {
         changeDirection(dir);
@@ -615,6 +626,9 @@ if (snakeCanvas) {
     });
   });
 
+  snakeCanvas.addEventListener('pointerdown', () => {
+    setActiveGame('snake');
+  });
   snakeCanvas.addEventListener('touchstart', (event) => event.preventDefault(), { passive: false });
   snakeCanvas.addEventListener('pointerdown', (event) => event.preventDefault());
 
@@ -638,34 +652,51 @@ if (runnerCanvas) {
   const PLAYER_DUCK_HEIGHT = 30;
   const JUMP1 = { peak: 58, duration: 520 };
   const JUMP2 = { peak: 92, duration: 760 };
+  const DOUBLE_JUMP_WINDOW_MS = 300;
+  const RUNNER_START_SPEED = 100;
+  const RUNNER_MAX_SPEED = RUNNER_WIDTH / 1.6;
+  const RUNNER_START_SPAWN_MS = 3000;
+  const RUNNER_MIN_SPAWN_MS = 1500;
+  const RUNNER_SPAWN_DROP_MS = 120;
+  const RUNNER_SPEED_RAMP_MS = 12000;
   const obstacleKinds = [
     {
       kind: 'jump1',
-      label: '1',
+      label: 'J1',
       color: '#77ff7a',
-      width: 30,
-      height: 26,
-      y: GROUND_Y - 26,
+      width: 32,
+      height: 24,
+      y: GROUND_Y - 24,
       requiredAction: 'jump1',
       points: 15,
     },
     {
       kind: 'jump2',
-      label: '2',
+      label: 'J2',
       color: '#ffe36e',
-      width: 34,
-      height: 58,
-      y: GROUND_Y - 58,
+      width: 38,
+      height: 18,
+      y: 170,
       requiredAction: 'jump2',
       points: 20,
     },
     {
-      kind: 'duck',
-      label: 'D',
+      kind: 'stand',
+      label: 'S',
       color: '#6ad3ff',
       width: 42,
-      height: 22,
-      y: GROUND_Y - 112,
+      height: 16,
+      y: 158,
+      requiredAction: 'stand',
+      points: 16,
+    },
+    {
+      kind: 'duck',
+      label: 'D',
+      color: '#ff9f6b',
+      width: 46,
+      height: 12,
+      y: 214,
       requiredAction: 'duck',
       points: 18,
     },
@@ -684,10 +715,11 @@ if (runnerCanvas) {
     best: Number(localStorage.getItem(RUNNER_STORAGE_KEY) || 0),
     distance: 0,
     cleared: 0,
-    speed: 250,
+    speed: RUNNER_START_SPEED,
     obstacles: [],
     spawnAccumulator: 0,
-    spawnGap: 1200,
+    spawnJitter: 0,
+    nextSpawnDelay: RUNNER_START_SPAWN_MS,
     jump: null,
     ducking: false,
     lastTimestamp: 0,
@@ -715,6 +747,20 @@ if (runnerCanvas) {
     setScore();
   };
 
+  const currentRunnerSpeed = () => Math.min(
+    RUNNER_MAX_SPEED,
+    RUNNER_START_SPEED + ((RUNNER_MAX_SPEED - RUNNER_START_SPEED) * state.elapsed) / RUNNER_SPEED_RAMP_MS,
+  );
+
+  const currentSpawnDelay = () => {
+    const decaySteps = Math.floor(state.elapsed / 5000);
+    const reducedDelay = RUNNER_START_SPAWN_MS - (decaySteps * RUNNER_SPAWN_DROP_MS);
+    const jitter = state.spawnJitter || 0;
+    return Math.max(RUNNER_MIN_SPAWN_MS, reducedDelay + jitter);
+  };
+
+  const rollSpawnJitter = () => randomInt(601) - 300;
+
   const resetRunner = () => {
     state = {
       ...state,
@@ -724,10 +770,11 @@ if (runnerCanvas) {
       score: 0,
       distance: 0,
       cleared: 0,
-      speed: 250,
+      speed: RUNNER_START_SPEED,
       obstacles: [],
       spawnAccumulator: 0,
-      spawnGap: 1200,
+      spawnJitter: rollSpawnJitter(),
+      nextSpawnDelay: RUNNER_START_SPAWN_MS,
       jump: null,
       ducking: false,
       lastTimestamp: 0,
@@ -781,20 +828,32 @@ if (runnerCanvas) {
     }
   };
 
-  const beginJump = (kind) => {
+  const startJump = () => {
     ensureRunning();
-    if (state.gameOver || state.jump) {
+    if (state.gameOver) {
       return;
     }
-    if (state.ducking) {
+
+    if (!state.jump) {
       state.ducking = false;
+      state.jump = {
+        phase: 1,
+        elapsed: 0,
+        duration: runnerControls.jump1.duration,
+        peak: runnerControls.jump1.peak,
+      };
+      return;
     }
-    state.jump = {
-      kind,
-      elapsed: 0,
-      duration: runnerControls[kind].duration,
-      peak: runnerControls[kind].peak,
-    };
+
+    if (state.jump.phase === 1 && state.jump.elapsed <= DOUBLE_JUMP_WINDOW_MS) {
+      state.ducking = false;
+      state.jump = {
+        phase: 2,
+        elapsed: 0,
+        duration: runnerControls.jump2.duration,
+        peak: runnerControls.jump2.peak,
+      };
+    }
   };
 
   const startDuck = () => {
@@ -806,7 +865,9 @@ if (runnerCanvas) {
   };
 
   const stopDuck = () => {
-    state.ducking = false;
+    if (!state.jump) {
+      state.ducking = false;
+    }
   };
 
   const currentJumpOffset = () => {
@@ -929,7 +990,7 @@ if (runnerCanvas) {
       ctx.font = 'bold 30px Trebuchet MS, sans-serif';
       ctx.fillText('READY', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 - 18);
       ctx.font = '16px Trebuchet MS, sans-serif';
-      ctx.fillText('Start 또는 1/2/숙이기로 시작하세요', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 + 18);
+      ctx.fillText('Space로 점프, ↓로 숙이기', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 + 18);
     } else if (state.paused && !state.gameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
@@ -958,11 +1019,11 @@ if (runnerCanvas) {
   };
 
   const updateRunnerObstacles = (delta) => {
-    const runnerSpeed = state.speed + Math.min(160, Math.floor(state.elapsed / 2400));
+    state.speed = currentRunnerSpeed();
     state.obstacles = state.obstacles
       .map((obstacle) => ({
         ...obstacle,
-        x: obstacle.x - (runnerSpeed * delta) / 1000,
+        x: obstacle.x - (state.speed * delta) / 1000,
       }))
       .filter((obstacle) => obstacle.x + obstacle.width > -20);
 
@@ -976,11 +1037,11 @@ if (runnerCanvas) {
         return;
       }
 
-      const jumpKind = state.jump ? state.jump.kind : null;
       const safe =
-        (obstacle.requiredAction === 'jump1' && (jumpKind === 'jump1' || jumpKind === 'jump2')) ||
-        (obstacle.requiredAction === 'jump2' && jumpKind === 'jump2') ||
-        (obstacle.requiredAction === 'duck' && state.ducking);
+        (obstacle.requiredAction === 'jump1' && state.jump) ||
+        (obstacle.requiredAction === 'jump2' && state.jump && state.jump.phase === 2) ||
+        (obstacle.requiredAction === 'stand' && !state.jump && !state.ducking) ||
+        (obstacle.requiredAction === 'duck' && state.ducking && !state.jump);
 
       if (safe) {
         obstacle.resolved = true;
@@ -1025,16 +1086,19 @@ if (runnerCanvas) {
     state.lastTimestamp = timestamp;
 
     if (!state.paused) {
-      state.distance += delta * (state.speed + Math.min(160, Math.floor(state.elapsed / 2400))) / 1000;
       state.elapsed += delta;
       state.spawnAccumulator += delta;
-      state.spawnGap = Math.max(760, 1200 - Math.floor(state.elapsed / 4000) * 30);
+      state.speed = currentRunnerSpeed();
+      state.nextSpawnDelay = currentSpawnDelay();
 
-      while (state.spawnAccumulator >= state.spawnGap) {
-        state.spawnAccumulator -= state.spawnGap;
+      while (state.spawnAccumulator >= state.nextSpawnDelay) {
+        state.spawnAccumulator -= state.nextSpawnDelay;
         spawnRunnerObstacle();
+        state.spawnJitter = rollSpawnJitter();
+        state.nextSpawnDelay = currentSpawnDelay();
       }
 
+      state.distance += state.speed * delta / 1000;
       stepJump(delta);
       updateRunnerObstacles(delta);
       syncScore();
@@ -1045,6 +1109,7 @@ if (runnerCanvas) {
   };
 
   const handleRunnerAction = (action) => {
+    setActiveGame('runner');
     if (action === 'start') {
       if (!state.running || state.gameOver) {
         resetRunner();
@@ -1068,12 +1133,12 @@ if (runnerCanvas) {
     }
 
     if (action === 'jump1') {
-      beginJump('jump1');
+      startJump();
       return;
     }
 
     if (action === 'jump2') {
-      beginJump('jump2');
+      startJump();
       return;
     }
 
@@ -1083,36 +1148,37 @@ if (runnerCanvas) {
   };
 
   const runnerKeyDown = (event) => {
+    if (activeGame === 'snake') {
+      return;
+    }
+
     if (event.repeat) {
       return;
     }
 
-    if (event.key === '1') {
+    if (event.code === 'Space' || event.key === ' ') {
       event.preventDefault();
-      beginJump('jump1');
+      startJump();
       return;
     }
 
-    if (event.key === '2') {
-      event.preventDefault();
-      beginJump('jump2');
-      return;
-    }
-
-    if (event.key === '0') {
+    if (event.key === 'ArrowDown') {
       event.preventDefault();
       startDuck();
     }
   };
 
   const runnerKeyUp = (event) => {
-    if (event.key === '0') {
+    if (event.key === 'ArrowDown') {
       stopDuck();
     }
   };
 
   runnerButtons.forEach((button) => {
     const action = button.dataset.runnerAction;
+    button.addEventListener('pointerdown', () => {
+      setActiveGame('runner');
+    });
     if (action === 'duck') {
       button.addEventListener('pointerdown', (event) => {
         event.preventDefault();
@@ -1140,6 +1206,10 @@ if (runnerCanvas) {
 
   window.addEventListener('keydown', runnerKeyDown);
   window.addEventListener('keyup', runnerKeyUp);
+
+  runnerCanvas.addEventListener('pointerdown', () => {
+    setActiveGame('runner');
+  });
 
   const drawRunnerInitial = () => {
     resetRunner();
