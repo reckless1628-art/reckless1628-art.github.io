@@ -842,6 +842,7 @@ if (runnerCanvas) {
         elapsed: 0,
         duration: runnerControls.jump1.duration,
         peak: runnerControls.jump1.peak,
+        baseOffset: 0,
       };
       return;
     }
@@ -853,6 +854,7 @@ if (runnerCanvas) {
         elapsed: 0,
         duration: runnerControls.jump2.duration,
         peak: runnerControls.jump2.peak,
+        baseOffset: currentJumpOffset(),
       };
     }
   };
@@ -876,7 +878,8 @@ if (runnerCanvas) {
       return 0;
     }
     const progress = Math.min(1, state.jump.elapsed / state.jump.duration);
-    return Math.sin(progress * Math.PI) * state.jump.peak;
+    const baseOffset = state.jump.baseOffset || 0;
+    return baseOffset + (Math.sin(progress * Math.PI) * state.jump.peak);
   };
 
   const playerBounds = () => {
