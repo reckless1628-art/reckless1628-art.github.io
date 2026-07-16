@@ -5,58 +5,144 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>민수 | Software Engineer</title>
-  <meta name="description" content="민수의 개인 프로페셔널 웹사이트">
+  <meta name="description" content="민수의 정적 프로페셔널 웹사이트">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <canvas id="matrix-canvas" aria-hidden="true"></canvas>
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="#home">MINSU</a>
+      <a class="brand" href="#home" aria-label="민수 홈">MINSU</a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
       <nav id="site-nav" class="site-nav" aria-label="주요 메뉴">
         <a href="#home">Home</a>
         <a href="#about">About</a>
         <a href="#projects">Projects</a>
+        <a href="#experience">Experience</a>
+        <a href="#research">Research</a>
         <a href="#contact">Contact</a>
         <a href="#games">Games</a>
       </nav>
     </header>
 
     <main id="home">
-      <section class="hero">
+      <section class="hero panel">
         <p class="eyebrow">Software Engineer</p>
         <h1>민수의 프로페셔널 웹사이트</h1>
-        <p class="lead">안드로이드 앱과 윈도우 스토어 앱 개발 경험을 바탕으로, 정적인 GitHub Pages 사이트를 차분하게 정리해 가는 첫 번째 루프입니다.</p>
+        <p class="lead">안드로이드 앱과 윈도우 스토어 앱 개발 경험을 바탕으로, 정적인 GitHub Pages 사이트와 지렁이 게임을 함께 담은 첫 구현본입니다.</p>
+        <div class="hero-chips" aria-label="핵심 요약">
+          <span>Static HTML / CSS / JavaScript</span>
+          <span>Matrix Style</span>
+          <span>Responsive</span>
+        </div>
       </section>
 
       <section id="about" class="panel">
         <h2>About</h2>
-        <dl class="profile-grid">
-          <div><dt>이름</dt><dd>민수</dd></div>
-          <div><dt>직함</dt><dd>소프트웨어 엔지니어</dd></div>
-          <div><dt>보유 기술</dt><dd>안드로이드 앱, 윈도우 스토어 앱 개발</dd></div>
-          <div><dt>프로젝트 경력</dt><dd>삼성 DailyBoard 앱, SamsungFind, Parental Controls 앱 개발</dd></div>
-          <div><dt>상세 자기소개</dt><dd>준비중</dd></div>
-        </dl>
+        <div class="profile-grid">
+          <article class="profile-card">
+            <h3>기본 정보</h3>
+            <dl>
+              <div><dt>이름</dt><dd>민수</dd></div>
+              <div><dt>직함</dt><dd>소프트웨어 엔지니어</dd></div>
+              <div><dt>상세 자기소개</dt><dd>준비중</dd></div>
+            </dl>
+          </article>
+          <article class="profile-card">
+            <h3>기술</h3>
+            <dl>
+              <div><dt>보유 기술</dt><dd>안드로이드 앱, 윈도우 스토어 앱 개발</dd></div>
+              <div><dt>이메일</dt><dd>준비중</dd></div>
+              <div><dt>LinkedIn</dt><dd>준비중</dd></div>
+            </dl>
+          </article>
+        </div>
       </section>
 
       <section id="projects" class="panel">
         <h2>Projects</h2>
-        <p>프로젝트 섹션은 다음 루프에서 카드형 레이아웃으로 구체화합니다.</p>
+        <div class="card-grid">
+          <article class="info-card">
+            <h3>삼성 DailyBoard 앱</h3>
+            <p>확인된 프로젝트 경력으로 기재합니다.</p>
+          </article>
+          <article class="info-card">
+            <h3>SamsungFind</h3>
+            <p>확인된 프로젝트 경력으로 기재합니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="experience" class="panel">
+        <h2>Experience</h2>
+        <div class="card-grid">
+          <article class="info-card">
+            <h3>안드로이드 앱 개발</h3>
+            <p>모바일 앱 개발 경험을 중심으로 정리했습니다.</p>
+          </article>
+          <article class="info-card">
+            <h3>윈도우 스토어 앱 개발</h3>
+            <p>데스크톱/스토어 배포 경험을 함께 보여줍니다.</p>
+          </article>
+          <article class="info-card">
+            <h3>Parental Controls 앱</h3>
+            <p>확인된 프로젝트 경력으로 기재합니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="research" class="panel">
+        <h2>Research</h2>
+        <p>확인된 연구 자료가 없어 준비중으로 표시합니다.</p>
       </section>
 
       <section id="contact" class="panel">
         <h2>Contact</h2>
-        <p>이메일: 준비중</p>
-        <p>LinkedIn: 준비중</p>
+        <div class="contact-grid">
+          <div class="info-card"><h3>Email</h3><p>준비중</p></div>
+          <div class="info-card"><h3>LinkedIn</h3><p>준비중</p></div>
+        </div>
       </section>
 
       <section id="games" class="panel">
-        <h2>Games</h2>
-        <p>지렁이 게임 영역은 다음 루프에서 구현합니다. 이번 루프에서는 자리와 접근 경로만 준비합니다.</p>
-        <div class="game-shell" aria-label="게임 준비 영역">
-          <p>게임판 준비중</p>
+        <div class="section-head">
+          <div>
+            <h2>Games</h2>
+            <p>키보드, WASD, 모바일 방향 버튼으로 조작하는 지렁이 게임입니다.</p>
+          </div>
+          <div class="status-bar" aria-live="polite">
+            <span id="game-status">준비중</span>
+            <span>Score <strong id="score-value">0</strong></span>
+            <span>Best <strong id="best-value">0</strong></span>
+          </div>
+        </div>
+
+        <div class="game-layout">
+          <div class="game-board-wrap">
+            <canvas id="snake-canvas" width="600" height="800" aria-label="지렁이 게임판"></canvas>
+          </div>
+
+          <div class="game-controls">
+            <div class="action-row">
+              <button type="button" class="action-btn" data-action="start">Start</button>
+              <button type="button" class="action-btn" data-action="pause">Pause</button>
+              <button type="button" class="action-btn" data-action="restart">Restart</button>
+            </div>
+
+            <div class="dpad" aria-label="모바일 방향 버튼">
+              <span></span>
+              <button type="button" class="pad-btn" data-dir="up">▲</button>
+              <span></span>
+              <button type="button" class="pad-btn" data-dir="left">◀</button>
+              <button type="button" class="pad-btn pad-center" data-action="pause">P</button>
+              <button type="button" class="pad-btn" data-dir="right">▶</button>
+              <span></span>
+              <button type="button" class="pad-btn" data-dir="down">▼</button>
+              <span></span>
+            </div>
+
+            <p class="game-hint">방향키 / WASD / 버튼으로 이동, `P`로 일시정지, 벽 충돌 시 종료, 최고 점수는 브라우저에 저장됩니다.</p>
+          </div>
         </div>
       </section>
     </main>
