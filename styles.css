@@ -251,6 +251,12 @@ dd {
   align-items: start;
 }
 
+.game-divider {
+  height: 1px;
+  margin: 1.5rem 0;
+  background: linear-gradient(90deg, transparent, rgba(83, 255, 121, 0.38), transparent);
+}
+
 .game-board-wrap {
   border-radius: 1.25rem;
   border: 1px solid rgba(83, 255, 121, 0.16);
@@ -259,7 +265,8 @@ dd {
   box-shadow: var(--shadow);
 }
 
-#snake-canvas {
+#snake-canvas,
+#runner-canvas {
   display: block;
   width: 100%;
   aspect-ratio: 3 / 4;
@@ -268,6 +275,10 @@ dd {
   background: radial-gradient(circle at top, rgba(43, 80, 50, 0.2), rgba(0, 0, 0, 0.92));
   border: 1px solid rgba(83, 255, 121, 0.2);
   touch-action: none;
+}
+
+#runner-canvas {
+  aspect-ratio: 900 / 320;
 }
 
 .game-controls {

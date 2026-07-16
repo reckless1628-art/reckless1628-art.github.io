@@ -77,6 +77,11 @@ const scoreValue = document.getElementById('score-value');
 const bestValue = document.getElementById('best-value');
 const actionButtons = document.querySelectorAll('[data-action]');
 const directionButtons = document.querySelectorAll('[data-dir]');
+const runnerCanvas = document.getElementById('runner-canvas');
+const runnerStatusValue = document.getElementById('runner-status');
+const runnerScoreValue = document.getElementById('runner-score');
+const runnerBestValue = document.getElementById('runner-best');
+const runnerButtons = document.querySelectorAll('[data-runner-action]');
 const BOARD_WIDTH = 600;
 const BOARD_HEIGHT = 800;
 const CELL = 20;
@@ -88,6 +93,7 @@ const ENEMY_LIFETIME_MS = 10000;
 const ENEMY_FIRST_SPAWN_MS = 60000;
 const ENEMY_REPEAT_SPAWN_MS = 120000;
 const STORAGE_KEY = 'reckless1628_art_snake_high_score';
+const RUNNER_STORAGE_KEY = 'reckless1628_art_runner_high_score';
 
 if (snakeCanvas) {
   const ctx = snakeCanvas.getContext('2d');
@@ -619,4 +625,527 @@ if (snakeCanvas) {
   };
 
   drawInitial();
+}
+
+if (runnerCanvas) {
+  const ctx = runnerCanvas.getContext('2d');
+  const RUNNER_WIDTH = 900;
+  const RUNNER_HEIGHT = 320;
+  const GROUND_Y = 260;
+  const PLAYER_X = 118;
+  const PLAYER_WIDTH = 44;
+  const PLAYER_STAND_HEIGHT = 52;
+  const PLAYER_DUCK_HEIGHT = 30;
+  const JUMP1 = { peak: 58, duration: 520 };
+  const JUMP2 = { peak: 92, duration: 760 };
+  const obstacleKinds = [
+    {
+      kind: 'jump1',
+      label: '1',
+      color: '#77ff7a',
+      width: 30,
+      height: 26,
+      y: GROUND_Y - 26,
+      requiredAction: 'jump1',
+      points: 15,
+    },
+    {
+      kind: 'jump2',
+      label: '2',
+      color: '#ffe36e',
+      width: 34,
+      height: 58,
+      y: GROUND_Y - 58,
+      requiredAction: 'jump2',
+      points: 20,
+    },
+    {
+      kind: 'duck',
+      label: 'D',
+      color: '#6ad3ff',
+      width: 42,
+      height: 22,
+      y: GROUND_Y - 112,
+      requiredAction: 'duck',
+      points: 18,
+    },
+  ];
+
+  const runnerControls = {
+    jump1: JUMP1,
+    jump2: JUMP2,
+  };
+
+  let state = {
+    running: false,
+    paused: false,
+    gameOver: false,
+    score: 0,
+    best: Number(localStorage.getItem(RUNNER_STORAGE_KEY) || 0),
+    distance: 0,
+    cleared: 0,
+    speed: 250,
+    obstacles: [],
+    spawnAccumulator: 0,
+    spawnGap: 1200,
+    jump: null,
+    ducking: false,
+    lastTimestamp: 0,
+  };
+
+  const setStatus = (value) => {
+    if (runnerStatusValue) {
+      runnerStatusValue.textContent = value;
+    }
+  };
+
+  const setScore = () => {
+    if (runnerScoreValue) {
+      runnerScoreValue.textContent = String(state.score);
+    }
+    if (runnerBestValue) {
+      runnerBestValue.textContent = String(state.best);
+    }
+  };
+
+  const syncScore = () => {
+    state.score = Math.floor(state.distance / 14) + (state.cleared * 20);
+    state.best = Math.max(state.best, state.score);
+    localStorage.setItem(RUNNER_STORAGE_KEY, String(state.best));
+    setScore();
+  };
+
+  const resetRunner = () => {
+    state = {
+      ...state,
+      running: false,
+      paused: false,
+      gameOver: false,
+      score: 0,
+      distance: 0,
+      cleared: 0,
+      speed: 250,
+      obstacles: [],
+      spawnAccumulator: 0,
+      spawnGap: 1200,
+      jump: null,
+      ducking: false,
+      lastTimestamp: 0,
+    };
+    setScore();
+    setStatus('준비중');
+    drawRunner();
+  };
+
+  const startRunner = () => {
+    if (state.gameOver) {
+      resetRunner();
+    }
+    state.running = true;
+    state.paused = false;
+    setStatus('진행중');
+  };
+
+  const pauseRunner = () => {
+    if (!state.running || state.gameOver) {
+      return;
+    }
+    state.paused = !state.paused;
+    setStatus(state.paused ? '일시정지' : '진행중');
+  };
+
+  const endRunner = () => {
+    state.running = true;
+    state.paused = true;
+    state.gameOver = true;
+    state.best = Math.max(state.best, state.score);
+    localStorage.setItem(RUNNER_STORAGE_KEY, String(state.best));
+    setScore();
+    setStatus('게임 오버');
+  };
+
+  const ensureRunning = () => {
+    if (state.gameOver) {
+      resetRunner();
+      state.running = true;
+      setStatus('진행중');
+      return;
+    }
+    if (!state.running) {
+      startRunner();
+      return;
+    }
+    if (state.paused) {
+      state.paused = false;
+      setStatus('진행중');
+    }
+  };
+
+  const beginJump = (kind) => {
+    ensureRunning();
+    if (state.gameOver || state.jump) {
+      return;
+    }
+    if (state.ducking) {
+      state.ducking = false;
+    }
+    state.jump = {
+      kind,
+      elapsed: 0,
+      duration: runnerControls[kind].duration,
+      peak: runnerControls[kind].peak,
+    };
+  };
+
+  const startDuck = () => {
+    ensureRunning();
+    if (state.gameOver || state.jump) {
+      return;
+    }
+    state.ducking = true;
+  };
+
+  const stopDuck = () => {
+    state.ducking = false;
+  };
+
+  const currentJumpOffset = () => {
+    if (!state.jump) {
+      return 0;
+    }
+    const progress = Math.min(1, state.jump.elapsed / state.jump.duration);
+    return Math.sin(progress * Math.PI) * state.jump.peak;
+  };
+
+  const playerBounds = () => {
+    const duckHeight = state.ducking ? PLAYER_DUCK_HEIGHT : PLAYER_STAND_HEIGHT;
+    const y = GROUND_Y - duckHeight - currentJumpOffset();
+    return {
+      x: PLAYER_X,
+      y,
+      width: PLAYER_WIDTH,
+      height: duckHeight,
+    };
+  };
+
+  const obstacleBounds = (obstacle) => ({
+    x: obstacle.x,
+    y: obstacle.y,
+    width: obstacle.width,
+    height: obstacle.height,
+  });
+
+  const rectsOverlap = (a, b) => (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+
+  const createObstacle = () => {
+    const template = obstacleKinds[randomInt(obstacleKinds.length)];
+    return {
+      ...template,
+      x: RUNNER_WIDTH + 40,
+      passed: false,
+      resolved: false,
+    };
+  };
+
+  const drawRoundedBar = (x, y, width, height, color) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  };
+
+  const drawRunnerGround = () => {
+    ctx.fillStyle = 'rgba(1, 4, 2, 0.95)';
+    ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, RUNNER_HEIGHT);
+    gradient.addColorStop(0, 'rgba(8, 22, 10, 0.98)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.98)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
+
+    ctx.strokeStyle = 'rgba(83, 255, 121, 0.18)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y + 0.5);
+    ctx.lineTo(RUNNER_WIDTH, GROUND_Y + 0.5);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(83, 255, 121, 0.06)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= RUNNER_WIDTH; x += 60) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, GROUND_Y - 30);
+      ctx.lineTo(x + 0.5, RUNNER_HEIGHT);
+      ctx.stroke();
+    }
+  };
+
+  const drawPlayer = () => {
+    const player = playerBounds();
+    const isDuck = state.ducking && !state.jump;
+    ctx.fillStyle = isDuck ? '#ffe36e' : '#53ff79';
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+
+    if (!isDuck) {
+      ctx.fillStyle = '#f3fff4';
+      ctx.beginPath();
+      ctx.arc(player.x + 12, player.y + 14, 2.1, 0, Math.PI * 2);
+      ctx.arc(player.x + 24, player.y + 14, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#041506';
+      ctx.fillRect(player.x + 10, player.y + 14, 16, 3);
+    }
+  };
+
+  const drawObstacle = (obstacle) => {
+    const alpha = obstacle.resolved ? 0.45 : 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawRoundedBar(obstacle.x, obstacle.y, obstacle.width, obstacle.height, obstacle.color);
+    ctx.fillStyle = '#041506';
+    ctx.font = 'bold 14px Trebuchet MS, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(obstacle.label, obstacle.x + obstacle.width / 2, obstacle.y + obstacle.height / 2 + 5);
+    ctx.restore();
+  };
+
+  const drawRunner = () => {
+    drawRunnerGround();
+
+    drawPlayer();
+
+    state.obstacles.forEach(drawObstacle);
+
+    if (!state.running) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
+      ctx.fillStyle = '#dfffe4';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 30px Trebuchet MS, sans-serif';
+      ctx.fillText('READY', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 - 18);
+      ctx.font = '16px Trebuchet MS, sans-serif';
+      ctx.fillText('Start 또는 1/2/숙이기로 시작하세요', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 + 18);
+    } else if (state.paused && !state.gameOver) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
+      ctx.fillStyle = '#ffe36e';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 30px Trebuchet MS, sans-serif';
+      ctx.fillText('PAUSED', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2);
+    } else if (state.gameOver) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
+      ctx.fillStyle = '#ff6675';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 30px Trebuchet MS, sans-serif';
+      ctx.fillText('GAME OVER', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 - 18);
+      ctx.fillStyle = '#dfffe4';
+      ctx.font = '16px Trebuchet MS, sans-serif';
+      ctx.fillText('Restart로 다시 시작할 수 있습니다', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 + 18);
+    }
+  };
+
+  const spawnRunnerObstacle = () => {
+    if (state.obstacles.length >= 4) {
+      return;
+    }
+    state.obstacles.push(createObstacle());
+  };
+
+  const updateRunnerObstacles = (delta) => {
+    const runnerSpeed = state.speed + Math.min(160, Math.floor(state.elapsed / 2400));
+    state.obstacles = state.obstacles
+      .map((obstacle) => ({
+        ...obstacle,
+        x: obstacle.x - (runnerSpeed * delta) / 1000,
+      }))
+      .filter((obstacle) => obstacle.x + obstacle.width > -20);
+
+    const player = playerBounds();
+
+    state.obstacles.forEach((obstacle) => {
+      if (obstacle.resolved) {
+        return;
+      }
+      if (!rectsOverlap(player, obstacleBounds(obstacle))) {
+        return;
+      }
+
+      const jumpKind = state.jump ? state.jump.kind : null;
+      const safe =
+        (obstacle.requiredAction === 'jump1' && (jumpKind === 'jump1' || jumpKind === 'jump2')) ||
+        (obstacle.requiredAction === 'jump2' && jumpKind === 'jump2') ||
+        (obstacle.requiredAction === 'duck' && state.ducking);
+
+      if (safe) {
+        obstacle.resolved = true;
+        state.cleared += 1;
+        state.distance += obstacle.points * 2;
+        syncScore();
+      } else {
+        endRunner();
+      }
+    });
+  };
+
+  const stepJump = (delta) => {
+    if (!state.jump) {
+      return;
+    }
+    state.jump.elapsed += delta;
+    if (state.jump.elapsed >= state.jump.duration) {
+      state.jump = null;
+    }
+  };
+
+  const loopRunner = (timestamp) => {
+    if (!state.running) {
+      state.lastTimestamp = timestamp;
+      drawRunner();
+      requestAnimationFrame(loopRunner);
+      return;
+    }
+
+    if (state.gameOver) {
+      drawRunner();
+      requestAnimationFrame(loopRunner);
+      return;
+    }
+
+    if (!state.lastTimestamp) {
+      state.lastTimestamp = timestamp;
+    }
+
+    const delta = timestamp - state.lastTimestamp;
+    state.lastTimestamp = timestamp;
+
+    if (!state.paused) {
+      state.distance += delta * (state.speed + Math.min(160, Math.floor(state.elapsed / 2400))) / 1000;
+      state.elapsed += delta;
+      state.spawnAccumulator += delta;
+      state.spawnGap = Math.max(760, 1200 - Math.floor(state.elapsed / 4000) * 30);
+
+      while (state.spawnAccumulator >= state.spawnGap) {
+        state.spawnAccumulator -= state.spawnGap;
+        spawnRunnerObstacle();
+      }
+
+      stepJump(delta);
+      updateRunnerObstacles(delta);
+      syncScore();
+    }
+
+    drawRunner();
+    requestAnimationFrame(loopRunner);
+  };
+
+  const handleRunnerAction = (action) => {
+    if (action === 'start') {
+      if (!state.running || state.gameOver) {
+        resetRunner();
+      }
+      startRunner();
+      return;
+    }
+
+    if (action === 'pause') {
+      if (!state.running) {
+        resetRunner();
+      }
+      pauseRunner();
+      return;
+    }
+
+    if (action === 'restart') {
+      resetRunner();
+      startRunner();
+      return;
+    }
+
+    if (action === 'jump1') {
+      beginJump('jump1');
+      return;
+    }
+
+    if (action === 'jump2') {
+      beginJump('jump2');
+      return;
+    }
+
+    if (action === 'duck') {
+      startDuck();
+    }
+  };
+
+  const runnerKeyDown = (event) => {
+    if (event.repeat) {
+      return;
+    }
+
+    if (event.key === '1') {
+      event.preventDefault();
+      beginJump('jump1');
+      return;
+    }
+
+    if (event.key === '2') {
+      event.preventDefault();
+      beginJump('jump2');
+      return;
+    }
+
+    if (event.key === '0') {
+      event.preventDefault();
+      startDuck();
+    }
+  };
+
+  const runnerKeyUp = (event) => {
+    if (event.key === '0') {
+      stopDuck();
+    }
+  };
+
+  runnerButtons.forEach((button) => {
+    const action = button.dataset.runnerAction;
+    if (action === 'duck') {
+      button.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        handleRunnerAction('duck');
+      });
+      button.addEventListener('pointerup', () => {
+        stopDuck();
+      });
+      button.addEventListener('pointerleave', () => {
+        stopDuck();
+      });
+      button.addEventListener('pointercancel', () => {
+        stopDuck();
+      });
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+      });
+      return;
+    }
+
+    button.addEventListener('click', () => {
+      handleRunnerAction(action);
+    });
+  });
+
+  window.addEventListener('keydown', runnerKeyDown);
+  window.addEventListener('keyup', runnerKeyUp);
+
+  const drawRunnerInitial = () => {
+    resetRunner();
+    drawRunner();
+    requestAnimationFrame(loopRunner);
+  };
+
+  drawRunnerInitial();
 }
