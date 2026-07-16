@@ -87,6 +87,7 @@ let activeGame = 'snake';
 const setActiveGame = (game) => {
   activeGame = game;
 };
+const randomInt = (limit) => Math.floor(Math.random() * limit);
 const BOARD_WIDTH = 600;
 const BOARD_HEIGHT = 800;
 const CELL = 20;
@@ -141,8 +142,6 @@ if (snakeCanvas) {
       bestValue.textContent = String(state.best);
     }
   };
-
-  const randomInt = (limit) => Math.floor(Math.random() * limit);
 
   const sameCell = (a, b) => a && b && a.x === b.x && a.y === b.y;
 
@@ -713,6 +712,7 @@ if (runnerCanvas) {
     gameOver: false,
     score: 0,
     best: Number(localStorage.getItem(RUNNER_STORAGE_KEY) || 0),
+    elapsed: 0,
     distance: 0,
     cleared: 0,
     speed: RUNNER_START_SPEED,
@@ -768,6 +768,7 @@ if (runnerCanvas) {
       paused: false,
       gameOver: false,
       score: 0,
+      elapsed: 0,
       distance: 0,
       cleared: 0,
       speed: RUNNER_START_SPEED,
@@ -990,7 +991,7 @@ if (runnerCanvas) {
       ctx.font = 'bold 30px Trebuchet MS, sans-serif';
       ctx.fillText('READY', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 - 18);
       ctx.font = '16px Trebuchet MS, sans-serif';
-      ctx.fillText('Space로 점프, ↓로 숙이기', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 + 18);
+      ctx.fillText('ArrowUp로 점프, ArrowDown으로 숙이기', RUNNER_WIDTH / 2, RUNNER_HEIGHT / 2 + 18);
     } else if (state.paused && !state.gameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.fillRect(0, 0, RUNNER_WIDTH, RUNNER_HEIGHT);
@@ -1156,20 +1157,20 @@ if (runnerCanvas) {
       return;
     }
 
-    if (event.code === 'Space' || event.key === ' ') {
+    if (event.code === 'ArrowUp' || event.key === 'ArrowUp') {
       event.preventDefault();
       startJump();
       return;
     }
 
-    if (event.key === 'ArrowDown') {
+    if (event.code === 'ArrowDown' || event.key === 'ArrowDown') {
       event.preventDefault();
       startDuck();
     }
   };
 
   const runnerKeyUp = (event) => {
-    if (event.key === 'ArrowDown') {
+    if (event.code === 'ArrowDown' || event.key === 'ArrowDown') {
       stopDuck();
     }
   };
