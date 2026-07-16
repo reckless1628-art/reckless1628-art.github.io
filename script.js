@@ -25,7 +25,7 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
 if (matrixCanvas && !prefersReducedMotion.matches) {
   const ctx = matrixCanvas.getContext('2d');
   const glyphs = '0123456789ABCDEF'.split('');
-  const columnSpacing = 100;
+  const columnSpacing = 20;
   const speed = 400;
   let matrixWidth = 0;
   let matrixHeight = 0;
@@ -82,7 +82,7 @@ const BOARD_HEIGHT = 800;
 const CELL = 20;
 const COLS = BOARD_WIDTH / CELL;
 const ROWS = BOARD_HEIGHT / CELL;
-const SNAKE_STEP_MS = 500;
+const SNAKE_STEP_MS = 200;
 const ENEMY_STEP_MS = 1000;
 const ENEMY_LIFETIME_MS = 10000;
 const ENEMY_FIRST_SPAWN_MS = 60000;
@@ -426,6 +426,33 @@ if (snakeCanvas) {
     ctx.fillRect(cell.x * CELL + inset, cell.y * CELL + inset, CELL - inset * 2, CELL - inset * 2);
   };
 
+  const drawSnakeHead = (cell, direction) => {
+    drawCell(cell, '#53ff79', 2);
+
+    const centerX = cell.x * CELL + CELL / 2;
+    const centerY = cell.y * CELL + CELL / 2;
+    const forwardX = direction.x * 3;
+    const forwardY = direction.y * 3;
+    const sideX = -direction.y * 4;
+    const sideY = direction.x * 4;
+    const eyes = [
+      { x: centerX + forwardX + sideX, y: centerY + forwardY + sideY },
+      { x: centerX + forwardX - sideX, y: centerY + forwardY - sideY },
+    ];
+
+    eyes.forEach(({ x, y }) => {
+      ctx.beginPath();
+      ctx.fillStyle = '#f3fff4';
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.fillStyle = '#041506';
+      ctx.arc(x + direction.x * 0.7, y + direction.y * 0.7, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  };
+
   const draw = () => {
     drawGrid();
 
@@ -439,9 +466,13 @@ if (snakeCanvas) {
       });
     });
 
-    state.snake.forEach((part, index) => {
-      drawCell(part, index === 0 ? '#53ff79' : '#2eb85a', index === 0 ? 2 : 3);
+    state.snake.slice(1).forEach((part) => {
+      drawCell(part, '#2eb85a', 3);
     });
+
+    if (state.snake[0]) {
+      drawSnakeHead(state.snake[0], state.direction);
+    }
 
     if (!state.running) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
